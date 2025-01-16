@@ -15,7 +15,14 @@ Downloaded cursor and started to type stuff in the Chat. Tried out mostly basic 
 - Game menu with a few actions focused around outfitting 
 - Some locic around Growing crop, exploring ruins, magic items
 - Trading different goods
+
 Most advanced was probably to introduce save state and colored ANSI for the terminal, but this also worked this one click.
+
 Number of lines in game.py ~1000
 
 ### Day 2 - Travel the world
+- Sea travel onboard a ship as deckhand
+- Nemesis added
+
+Number of lines of code in game.py ~1250
+
