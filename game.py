@@ -12,6 +12,8 @@ animal_species = ["Fox", "Wolf", "Bear", "Raccoon", "Rabbit", "Deer", "Otter", "
 island_prefixes = ["Shadow", "Mystic", "Thunder", "Crystal", "Emerald", "Golden", "Silver"]
 island_suffixes = ["Isle", "Island", "Haven", "Bay", "Cove", "Shores", "Point"]
 ruin_types = ["Temple", "Fortress", "Palace", "Pyramid", "Monastery", "Amphitheater", "Catacombs", "Lighthouse", "Observatory"]
+pirate_name_prefixes = ["Captain", "Black", "Red", "Mad", "Cruel", "Salty", "Iron", "Gold", "Silver", "Bloody"]
+pirate_name_suffixes = ["Cruelbeard", "Meathook", "Lumpeye", "Sabertooth", "Crookclaw", "Doublefang", "Shadowheart", "Dusthand", "Winterbones", "IceStorm"]
 
 # Update sacred artifact abilities with specific names
 sacred_artifact_abilities = [
@@ -53,6 +55,78 @@ RED = '\033[91m'       # Red for ships
 WHITE = '\033[97m'     # White for player
 RESET = '\033[0m'      # Reset color
 GRAY = '\033[90m'      # Gray for sea monster
+
+class TradeShip:
+    def __init__(self, home_island, world):
+        # Ship type
+        ship_type = random.choice(['Sloop', 'Brigantine', 'Galleon'])
+        ship_stats = {
+            'Sloop': {'crew_max': 10, 'speed': 3, 'cargo': 5},
+            'Brigantine': {'crew_max': 15, 'speed': 2, 'cargo': 8},
+            'Galleon': {'crew_max': 25, 'speed': 1, 'cargo': 12}
+        }
+        
+        self.type = ship_type
+        self.crew = random.randint(5, ship_stats[ship_type]['crew_max'])
+        self.speed = ship_stats[ship_type]['speed']
+        self.cargo_capacity = ship_stats[ship_type]['cargo']
+        
+        # Location and movement
+        self.home_island = home_island
+        self.current_position = home_island.coordinates
+        self.destination = None
+        self.days_at_destination = 0
+        self.returning_home = False
+        
+        # Trade goods
+        trade_goods = ['Food', 'Seeds', 'Spices', 'Cloth', 'Rum', 'Wood', 'Iron', 'Gold']
+        self.selling = random.choice(trade_goods)
+        self.buying = random.choice([g for g in trade_goods if g != self.selling])
+        self.sell_price = random.randint(50, 200)
+        self.buy_price = random.randint(50, 200)
+        
+        # Set random destination (not home island)
+        available_islands = [island for island in world.islands.values() 
+                           if island.is_inhabited and island != home_island]
+        if available_islands:
+            self.destination = random.choice(available_islands)
+        
+        self.last_position = self.current_position
+
+    def move(self):
+        if not self.destination:
+            return
+            
+        self.last_position = self.current_position  # Store last position before moving
+        
+        target = (self.home_island.coordinates if self.returning_home 
+                 else self.destination.coordinates)
+        
+        # Calculate direction vector
+        dx = target[0] - self.current_position[0]
+        dy = target[1] - self.current_position[1]
+        distance = (dx**2 + dy**2)**0.5
+        
+        if distance <= self.speed:
+            # Reached destination
+            self.current_position = target
+            if self.returning_home and target == self.home_island.coordinates:
+                # Reset for next journey
+                self.returning_home = False
+                self.days_at_destination = 0
+                self.destination = None
+            elif not self.returning_home:
+                self.days_at_destination += 1
+                if self.days_at_destination >= 3:
+                    self.returning_home = True
+        else:
+            # Move toward destination
+            move_x = int(dx / distance * self.speed)
+            move_y = int(dy / distance * self.speed)
+            self.current_position = (
+                self.current_position[0] + move_x,
+                self.current_position[1] + move_y
+            )
 
 class Ship:
     def __init__(self, name, price, crew_capacity, speed):
@@ -261,58 +335,40 @@ class Port:
 
     def visit(self, character, world, current_island):
         print("\n=== Welcome to the Port ===")
-        print("1. Travel")
+        print("1. Travel as Deckhand")
         print("2. Trade with Ships")
         choice = input("What would you like to do? ")
         
         if choice == "2":
             self.handle_trade(character)
-            return current_island, None
+            return current_island, None, None
         elif choice == "1":
-            if character.ship is None:
-                print("You need a ship before you can travel!")
-                return current_island, None
+            # Filter out ships with no destination
+            available_ships = [ship for ship in self.trade_ships if ship.destination is not None]
+            
+            if not available_ships:
+                print("No ships currently available for travel!")
+                return current_island, None, None
 
-            print("\nAvailable destinations:")
-            available_islands = [name for name in world.islands.keys() if name != current_island.name]
+            print("\nAvailable ships:")
+            for i, ship in enumerate(available_ships, 1):
+                dest = "returning home" if ship.returning_home else f"headed to {ship.destination.name}"
+                print(f"{i}. {ship.type} ({dest})")
             
-            for i, island_name in enumerate(available_islands, 1):
-                island = world.islands[island_name]
-                status = "Inhabited" if island.is_inhabited else "Uninhabited"
-                if island.coordinates and current_island.coordinates:
-                    distance = self.calculate_distance(current_island.coordinates, island.coordinates)
-                    travel_time = self.calculate_travel_time(distance, character.ship.speed)
-                    print(f"{i}. {island_name} ({status}) - {distance:.1f} squares away, {travel_time} days to travel")
-                else:
-                    print(f"{i}. {island_name} ({status})")
-            
-            print(f"\nTravel cost: {self.travel_cost} gold")
-            choice = input("\nWhere would you like to sail? (Enter number or 'no'): ")
-            
+            choice = input("\nWhich ship would you like to join? (number or 'cancel'): ")
+            if choice.lower() == 'cancel':
+                return current_island, None, None
+                
             try:
-                if choice.lower() == 'no':
-                    return current_island, None
-                    
-                choice_idx = int(choice) - 1
-                if 0 <= choice_idx < len(available_islands):
-                    if character.gold >= self.travel_cost:
-                        character.gold -= self.travel_cost
-                        destination_island = world.islands[available_islands[choice_idx]]
-                        
-                        # Calculate travel time
-                        distance = self.calculate_distance(current_island.coordinates, destination_island.coordinates)
-                        travel_time = self.calculate_travel_time(distance, character.ship.speed)
-                        
-                        print(f"\nThe journey will take {travel_time} days.")
-                        return destination_island, None
-                    else:
-                        print("You can't afford to travel!")
-                else:
-                    print("Invalid destination!")
-            except ValueError:
-                print("Please enter a valid number!")
-            
-            return current_island, None
+                chosen_ship = available_ships[int(choice) - 1]
+                print(f"\nYou've joined the crew of the {chosen_ship.type}!")
+                return (chosen_ship.destination if not chosen_ship.returning_home 
+                        else chosen_ship.home_island), None, chosen_ship
+            except (ValueError, IndexError):
+                print("Invalid choice!")
+                return current_island, None, None
+
+        return current_island, None, None
 
     def calculate_distance(self, start, end):
         """Calculate distance between two points using Pythagorean theorem"""
@@ -545,16 +601,32 @@ class Ruins:
             print(f"The robbers overwhelmed you! You lost {loss} gold.")
             character.gold -= loss
 
+class Nemesis:
+    def __init__(self):
+        self.species = random.choice(animal_species)
+        self.name = f"{random.choice(pirate_name_prefixes)} {random.choice(pirate_name_suffixes)}"
+        self.ship_type = random.choice(['Sloop', 'Brigantine', 'Galleon'])
+        
+        # Initialize stats similar to player
+        self.stats = {
+            "Health": random.randint(7, 12),  # Slightly stronger than player
+            "Intelligence": random.randint(5, 10),
+            "Charisma": random.randint(5, 10),
+            "Strength": random.randint(5, 10),
+            "Dexterity": random.randint(5, 10),
+            "Psyche": random.randint(5, 10)
+        }
+
 class Character:
     def __init__(self):
         self.species = random.choice(animal_species)
         self.name = input("Enter your character's name: ")
-        self.island = None  # We'll set this in main() instead
+        self.island = None
         self.gold = 1000
         self.ship = None
         self.crew = []
         self.inventory = {}
-        self.weapon_stats = {}  # Initialize weapon_stats
+        self.weapon_stats = {}
         
         self.stats = {
             "Health": random.randint(5, 10),
@@ -565,9 +637,19 @@ class Character:
             "Psyche": random.randint(1, 10)
         }
         
+        # Create nemesis
+        self.nemesis = Nemesis()
+        
+        print(f"\nYour father has disappeared with his ship in the last storm.") 
+        print(f"\nHe's left you with a family artifact, a spyglass, a map of the silent seas, and a thousand commonwealth goldcoins.") 
+
+        print(f"\nHis nemesis, the feared {self.nemesis.species} pirate {self.nemesis.name}, has sworn to seek and destroy your family. He's looking for you. Be Prepared!")
+        print(f"Last seen commanding a {self.nemesis.ship_type}.")
+
+
         # Give player a random sacred artifact at start
         starting_artifact = random.choice(sacred_artifact_abilities)
-        print(f"\nYou begin your journey with a {starting_artifact['name']}!")
+        print(f"\nYour family artifact is a {starting_artifact['name']}!")
         print(starting_artifact['description'])
         
         if starting_artifact['type'] == 'stat_boost':
@@ -595,6 +677,9 @@ class Character:
         print("\n=== Stats ===")
         for stat, value in self.stats.items():
             print(f"{stat}: {value}")
+        print("\n=== Nemesis Information ===")
+        print(f"Name: {self.nemesis.name} the {self.nemesis.species}")
+        print(f"Ship: {self.nemesis.ship_type}")
 
 class Island:
     def __init__(self, name=None):
@@ -723,9 +808,12 @@ class Map:
                 # Check for trade ships
                 ship_here = False
                 if trade_ships and not monster_here:
-                    for ship_pos, ship_type in trade_ships:
+                    for ship_pos, ship_type, is_player_ship in trade_ships:
                         if ship_pos == (i, j):
-                            row += f" {RED}{ship_type[0]}{RESET} "
+                            if is_player_ship:
+                                row += f" {WHITE}@{RESET} "
+                            else:
+                                row += f" {RED}{ship_type[0]}{RESET} "
                             ship_here = True
                             break
                 
@@ -771,11 +859,34 @@ class World:
             if not attempts < max_attempts:
                 print(f"Warning: Could not place {island.name} on the map")
         
-        # Ensure at least one inhabited island
-        if not any(island.is_inhabited for island in self.islands.values()):
-            random_island_name = random.choice(list(self.islands.keys()))
-            self.islands[random_island_name] = Island()
-            self.islands[random_island_name].is_inhabited = True
+        # Ensure at least two inhabited islands
+        inhabited_count = sum(1 for island in self.islands.values() if island.is_inhabited)
+        if inhabited_count < 2:
+            # Get list of uninhabited islands
+            uninhabited = [name for name, island in self.islands.items() 
+                         if not island.is_inhabited]
+            
+            # Calculate how many more inhabited islands we need
+            needed = 2 - inhabited_count
+            
+            # Convert that many uninhabited islands to inhabited
+            for island_name in random.sample(uninhabited, needed):
+                self.islands[island_name] = Island(island_name)  # Create new inhabited island
+                self.islands[island_name].is_inhabited = True
+                self.islands[island_name].towns = {}
+                num_towns = {
+                    "Small": 1,
+                    "Medium": 2,
+                    "Large": 3
+                }[self.islands[island_name].size]
+                
+                for _ in range(num_towns):
+                    town_name = f"{random.choice(town_names_prefixes)} {random.choice(town_names_suffixes)}"
+                    self.islands[island_name].towns[town_name] = Town(town_name)
+                
+                self.islands[island_name].population = sum(
+                    town.population for town in self.islands[island_name].towns.values()
+                )
 
     def get_inhabited_islands(self):
         return {name: island for name, island in self.islands.items() if island.is_inhabited}
@@ -847,74 +958,6 @@ def load_game():
         print(f"\nError loading game: {e}")
         return None
 
-class TradeShip:
-    def __init__(self, home_island, world):
-        # Ship type
-        ship_type = random.choice(['Sloop', 'Brigantine', 'Galleon'])
-        ship_stats = {
-            'Sloop': {'crew_max': 10, 'speed': 3, 'cargo': 5},
-            'Brigantine': {'crew_max': 15, 'speed': 2, 'cargo': 8},
-            'Galleon': {'crew_max': 25, 'speed': 1, 'cargo': 12}
-        }
-        
-        self.type = ship_type
-        self.crew = random.randint(5, ship_stats[ship_type]['crew_max'])
-        self.speed = ship_stats[ship_type]['speed']
-        self.cargo_capacity = ship_stats[ship_type]['cargo']
-        
-        # Location and movement
-        self.home_island = home_island
-        self.current_position = home_island.coordinates
-        self.destination = None
-        self.days_at_destination = 0
-        self.returning_home = False
-        
-        # Trade goods
-        trade_goods = ['Food', 'Seeds', 'Spices', 'Cloth', 'Rum', 'Wood', 'Iron', 'Gold']
-        self.selling = random.choice(trade_goods)
-        self.buying = random.choice([g for g in trade_goods if g != self.selling])
-        self.sell_price = random.randint(50, 200)
-        self.buy_price = random.randint(50, 200)
-        
-        # Set random destination (not home island)
-        available_islands = [island for island in world.islands.values() 
-                           if island.is_inhabited and island != home_island]
-        if available_islands:
-            self.destination = random.choice(available_islands)
-    
-    def move(self):
-        if not self.destination:
-            return
-            
-        target = (self.home_island.coordinates if self.returning_home 
-                 else self.destination.coordinates)
-        
-        # Calculate direction vector
-        dx = target[0] - self.current_position[0]
-        dy = target[1] - self.current_position[1]
-        distance = (dx**2 + dy**2)**0.5
-        
-        if distance <= self.speed:
-            # Reached destination
-            self.current_position = target
-            if self.returning_home and target == self.home_island.coordinates:
-                # Reset for next journey
-                self.returning_home = False
-                self.days_at_destination = 0
-                self.destination = None
-            elif not self.returning_home:
-                self.days_at_destination += 1
-                if self.days_at_destination >= 3:
-                    self.returning_home = True
-        else:
-            # Move toward destination
-            move_x = int(dx / distance * self.speed)
-            move_y = int(dy / distance * self.speed)
-            self.current_position = (
-                self.current_position[0] + move_x,
-                self.current_position[1] + move_y
-            )
-
 class SeaMonster:
     def __init__(self, world):
         self.speed = 1
@@ -953,7 +996,7 @@ class SeaMonster:
         return destroyed
 
 def main():
-    print("Welcome to the Island Adventure!")
+    print("Welcome to Crystal Quest! Adventure awaits!")
     print("1. New Game")
     print("2. Load Game")
     choice = input("\nWhat would you like to do? ")
@@ -992,6 +1035,8 @@ def main():
     trade_ships = []
     sea_monster = SeaMonster(world)
     
+    current_ship = None  # Add this variable to track if player is on a ship
+    
     while True:
         print(f"\n=== Day {day} ===")
         
@@ -1025,13 +1070,92 @@ def main():
         for ship in trade_ships:
             ship.move()
         
-        # Display map with trade ships and sea monster
-        world.map.display(current_island.coordinates, 
-                         [(ship.current_position, ship.type) for ship in trade_ships],
-                         sea_monster,
-                         day)
+        # Create ship display info list with player ship information
+        ship_display_info = [(ship.current_position, ship.type, ship == current_ship) 
+                            for ship in trade_ships]
         
-        if current_island.is_inhabited:
+        # Display map with trade ships and sea monster
+        world.map.display(
+            None if current_ship else current_island.coordinates, 
+            ship_display_info,
+            sea_monster,
+            day
+        )
+        
+        # Check for ships arriving at player's location
+        if current_island and not current_ship:  # Only check if player is on an island
+            for ship in trade_ships:
+                # Check if ship just arrived at player's location
+                if (ship.current_position == current_island.coordinates and 
+                    ship.last_position != current_island.coordinates):
+                    dest_type = "home port" if ship.returning_home else "destination"
+                    print(f"\nA {ship.type} has arrived at its {dest_type}!")
+        
+        # Different menu options when at sea
+        if current_ship:
+            print(f"\n=== Aboard {current_ship.type} ===")
+            print("1. View Character Info")
+            print("2. View Ship Info")
+            print("3. Wait")
+            print("4. Save Game")
+            print("5. Quit")
+            
+            choice = input("\nWhat would you like to do? ")
+            
+            if choice == "1":
+                player.display_info()
+            elif choice == "2":
+                print(f"\n=== Ship Information ===")
+                print(f"Type: {current_ship.type}")
+                print(f"Crew: {current_ship.crew}")
+                print(f"Speed: {current_ship.speed} squares/day")
+                if current_ship.returning_home:
+                    print(f"Destination: {current_ship.home_island.name} (Home Port)")
+                else:
+                    print(f"Destination: {current_ship.destination.name}")
+            elif choice == "3":
+                print("You wait for a day...")
+                day += 1
+                
+                # Move sea monster and update ships
+                sea_monster.move(world)
+                for ship in trade_ships:
+                    ship.move()
+                
+                # Update and display the map
+                ship_display_info = [(ship.current_position, ship.type, ship == current_ship) 
+                                   for ship in trade_ships]
+                world.map.display(
+                    None if current_ship else current_island.coordinates,
+                    ship_display_info,
+                    sea_monster,
+                    day
+                )
+                
+                # Check if ship has reached destination
+                if (current_ship.current_position == 
+                    (current_ship.destination.coordinates if not current_ship.returning_home 
+                     else current_ship.home_island.coordinates)):
+                    print("\nThe ship has reached its destination!")
+                    embark = input("Would you like to disembark? (yes/no): ")
+                    if embark.lower() == 'yes':
+                        current_island = (current_ship.destination if not current_ship.returning_home 
+                                        else current_ship.home_island)
+                        if current_island.is_inhabited:
+                            current_town = random.choice(list(current_island.towns.keys()))
+                        current_ship = None
+                        print(f"\nYou disembark and step onto the docks of {current_island.name}!")
+                        if current_island.is_inhabited:
+                            print(f"You find yourself in the town of {current_town}.")
+                        else:
+                            print("The island appears to be uninhabited.")
+            elif choice == "4":
+                save_game(player, world, current_island, current_town, day)
+            elif choice == "5":
+                print("Thanks for playing!")
+                break
+            
+        elif current_island.is_inhabited and current_town is not None:  # Add check for current_town
             print(f"\n=== {current_town}, {current_island.name} ===")
             print("1. Shipyard")
             print("2. Pub")
@@ -1041,19 +1165,32 @@ def main():
             print("6. View Character Info")
             print("7. View Island Info")
             print("8. Wait")
-            print("9. Save Game")  # New option
+            print("9. Save Game")
             if 'home' in current_island.towns[current_town].locations:
                 print("10. Home")
                 print("11. Quit")
             else:
                 print("10. Quit")
-        else:
-            print(f"\n=== Uninhabited {current_island.name} ===")
-            print("1. View Island Info")
-            print("2. Explore Ruins") if current_island.has_ruins else None
-            print("3. Return to Port")
-            print("4. Wait")  # New option
-            print("5. Quit")
+        else:  # Either uninhabited island or no current town
+            print(f"\n=== {current_island.name} ===")
+            if not current_island.is_inhabited:
+                print("1. View Island Info")
+                print("2. Explore Ruins") if current_island.has_ruins else None
+                print("3. Return to Port")
+                print("4. Wait")
+                print("5. Quit")
+            else:
+                # For inhabited islands where we haven't selected a town yet
+                print("Available towns:")
+                for i, town_name in enumerate(current_island.towns.keys(), 1):
+                    print(f"{i}. {town_name}")
+                choice = input("\nWhich town would you like to enter? ")
+                try:
+                    town_name = list(current_island.towns.keys())[int(choice) - 1]
+                    current_town = town_name
+                    continue
+                except (ValueError, IndexError):
+                    print("Invalid choice!")
         
         choice = input("\nWhat would you like to do? ")
         
@@ -1067,13 +1204,15 @@ def main():
             elif choice == "4":
                 current_island.towns[current_town].locations['market'].visit(player)
             elif choice == "5":
-                new_island, new_town = current_island.towns[current_town].locations['port'].visit(player, world, current_island)
-                if new_island is not None:
+                new_island, new_town, new_ship = current_island.towns[current_town].locations['port'].visit(
+                    player, world, current_island)
+                if new_ship is not None:
+                    current_ship = new_ship
+                    day += 1
+                elif new_island is not None:
                     current_island = new_island
-                    if current_island.is_inhabited:
-                        current_town = random.choice(list(current_island.towns.keys()))
-                    print(f"\nWelcome to {current_island.name}!")
-                day += 1  # Travel takes a day
+                    current_town = new_town
+                    day += 1
             elif choice == "6":
                 player.display_info()
                 print(f"\nGold: {player.gold}")
