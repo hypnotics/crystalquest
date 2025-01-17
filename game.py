@@ -284,8 +284,15 @@ class Port:
         self.last_spawn = 0  # Days since last trade ship spawn
 
     def spawn_trade_ship(self, current_day, home_island, world):
-        # Spawn new trade ship every 3-7 days
-        if current_day - self.last_spawn >= random.randint(3, 7):
+        # Count total trade ships in the world
+        total_trade_ships = sum(len(port.trade_ships) 
+                              for island in world.islands.values() 
+                              if island.is_inhabited 
+                              for port in [town.locations.get('port') for town in island.towns.values()])
+        
+        # Only spawn if below max limit and enough time has passed
+        if (total_trade_ships < world.max_trade_ships and 
+            current_day - self.last_spawn >= random.randint(3, 7)):
             self.trade_ships.append(TradeShip(home_island, world))
             self.last_spawn = current_day
 
@@ -400,6 +407,28 @@ class Port:
     def calculate_travel_time(self, distance, speed):
         """Calculate travel time based on distance and ship speed"""
         return max(1, int(distance / speed))
+
+    def visit(self, character, world, current_island, day):
+        print("\n=== Welcome to the Port ===")
+        if character.ship:
+            print("1. Set Sail")
+            print("2. Trade with Ships")
+            print("3. Back")
+        else:
+            print("1. Travel as Deckhand")
+            print("2. Trade with Ships")
+            print("3. Back")
+        
+        choice = input("What would you like to do? ")
+        
+        if character.ship and choice == "1":
+            return self.handle_sailing(character, world, current_island, day)
+        elif not character.ship and choice == "1":
+            return self.handle_deckhand_travel(day)
+        elif choice == "2":
+            return self.handle_trade(character, day)
+        
+        return current_island, None, None, day
 
 class Home:
     def __init__(self):
@@ -728,7 +757,7 @@ class Island:
         self.is_inhabited = random.random() > 0.3
         
         if not self.is_inhabited:
-            self.has_ruins = random.random() < 0.4
+            self.has_ruins = True # random.random() < 0.4
             self.ruins = Ruins() if self.has_ruins else None
             self.towns = {}
             self.population = 0
@@ -860,8 +889,9 @@ class Map:
 
 class World:
     def __init__(self, num_islands=5):
-        self.map = Map(20)  # Changed to 20x20 grid
+        self.map = Map(20)
         self.islands = {}
+        self.max_trade_ships = len([i for i in self.islands.values() if i.is_inhabited]) * 4
         
         # Create islands
         for _ in range(num_islands):
