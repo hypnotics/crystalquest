@@ -26,3 +26,8 @@ Number of lines in game.py ~1000
 
 Number of lines of code in game.py ~1250
 
+### Day 3 - Travel and explore
+- Free travel in your personal vessel
+- Explore uninhabited islands work
+
+Number of lines of code in game.py ~1350
