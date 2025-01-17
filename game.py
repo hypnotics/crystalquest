@@ -2,7 +2,13 @@ import random
 import pickle
 import os
 from datetime import datetime
-from crystalquest.items import sacred_artifact_abilities, treasure_types
+from crystalquest.items import (
+    sacred_artifact_abilities, 
+    treasure_types, 
+    weapons, 
+    trade_goods, 
+    ship_types
+)
 from crystalquest.colors import COLORS
 
 # Lists for random generation
@@ -20,17 +26,13 @@ pirate_name_suffixes = ["Cruelbeard", "Meathook", "Lumpeye", "Sabertooth", "Croo
 class TradeShip:
     def __init__(self, home_island, world):
         # Ship type
-        ship_type = random.choice(['Sloop', 'Brigantine', 'Galleon'])
-        ship_stats = {
-            'Sloop': {'crew_max': 10, 'speed': 2, 'cargo': 5},
-            'Brigantine': {'crew_max': 15, 'speed': 2, 'cargo': 8},
-            'Galleon': {'crew_max': 25, 'speed': 1, 'cargo': 12}
-        }
+        ship_type = random.choice(list(ship_types.keys()))
+        stats = ship_types[ship_type]
         
         self.type = ship_type
-        self.crew = random.randint(5, ship_stats[ship_type]['crew_max'])
-        self.speed = ship_stats[ship_type]['speed']
-        self.cargo_capacity = ship_stats[ship_type]['cargo']
+        self.crew = random.randint(5, stats['crew_max'])
+        self.speed = stats['speed']
+        self.cargo_capacity = stats['cargo']
         
         # Location and movement
         self.home_island = home_island
@@ -40,9 +42,8 @@ class TradeShip:
         self.returning_home = False
         
         # Trade goods
-        trade_goods = ['Food', 'Seeds', 'Spices', 'Cloth', 'Rum', 'Wood', 'Iron', 'Gold']
-        self.selling = random.choice(trade_goods)
-        self.buying = random.choice([g for g in trade_goods if g != self.selling])
+        self.selling = random.choice(list(trade_goods.keys()))
+        self.buying = random.choice([g for g in trade_goods.keys() if g != self.selling])
         self.sell_price = random.randint(50, 200)
         self.buy_price = random.randint(50, 200)
         
@@ -101,23 +102,7 @@ class Ship:
 
 class Shipyard:
     def __init__(self):
-        self.ships = {
-            'Sloop': {
-                'price': 1000,
-                'crew_capacity': 10,
-                'speed': 2
-            },
-            'Brigantine': {
-                'price': 2000,
-                'crew_capacity': 15,
-                'speed': 2
-            },
-            'Galleon': {
-                'price': 3000,
-                'crew_capacity': 25,
-                'speed': 1
-            }
-        }
+        self.ships = ship_types
 
     def visit(self, character):
         print("\n=== Welcome to the Shipyard ===")
@@ -169,28 +154,7 @@ class Pub:
 
 class Smithy:
     def __init__(self):
-        self.weapons = {
-            'Cutlass': {
-                'price': 200,
-                'damage': 3,
-                'type': 'melee'
-            },
-            'Pistol': {
-                'price': 300,
-                'damage': 4,
-                'type': 'ranged'
-            },
-            'Musket': {
-                'price': 400,
-                'damage': 5,
-                'type': 'ranged'
-            },
-            'Boarding Axe': {
-                'price': 150,
-                'damage': 2,
-                'type': 'melee'
-            }
-        }
+        self.weapons = weapons
 
     def visit(self, character):
         print("\n=== Welcome to the Smithy ===")
@@ -209,13 +173,7 @@ class Smithy:
 
 class Market:
     def __init__(self):
-        self.goods = {
-            'Food': 50,
-            'Seeds': 30,
-            'Spices': 100,
-            'Cloth': 80,
-            'Rum': 120
-        }
+        self.goods = trade_goods
 
     def visit(self, character):
         print("\n=== Welcome to the Market ===")
