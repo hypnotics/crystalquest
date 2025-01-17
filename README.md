@@ -1,6 +1,9 @@
 # Crystal Quest
 A text based, pirate themed, game made in Python using Cursor
 
+To run:
+``` python3 game.py ```
+
 ## Journal
 
 ### Day 0 - Design document & concept art
