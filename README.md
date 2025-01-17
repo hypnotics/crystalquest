@@ -2,8 +2,10 @@
 A text based, pirate themed, game made in Python using Cursor
 
 To run:
-``` cd <parent folder> ```
-``` python3 -m crystalquest.game ```
+``` 
+cd <parent folder> 
+python3 -m crystalquest.game 
+```
 
 ## Journal
 
