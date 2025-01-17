@@ -2,6 +2,8 @@ import random
 import pickle
 import os
 from datetime import datetime
+from crystalquest.items import sacred_artifact_abilities, treasure_types
+from crystalquest.colors import COLORS
 
 # Lists for random generation
 climates = ["Tropical", "Temperate", "Mediterranean", "Arctic", "Subtropical"]
@@ -14,47 +16,6 @@ island_suffixes = ["Isle", "Island", "Haven", "Bay", "Cove", "Shores", "Point"]
 ruin_types = ["Temple", "Fortress", "Palace", "Pyramid", "Monastery", "Amphitheater", "Catacombs", "Lighthouse", "Observatory"]
 pirate_name_prefixes = ["Captain", "Black", "Red", "Mad", "Cruel", "Salty", "Iron", "Gold", "Silver", "Bloody"]
 pirate_name_suffixes = ["Cruelbeard", "Meathook", "Lumpeye", "Sabertooth", "Crookclaw", "Doublefang", "Shadowheart", "Dusthand", "Winterbones", "IceStorm"]
-
-# Update sacred artifact abilities with specific names
-sacred_artifact_abilities = [
-    {
-        "name": "Warrior's Medallion",
-        "description": "An ancient medallion pulsing with martial energy",
-        "type": "stat_boost",
-        "stat": "Strength",
-        "boost": 2
-    },
-    {
-        "name": "Fertile Earth Charm",
-        "description": "A mystical charm that resonates with natural energy",
-        "type": "farming",
-        "growth_reduction": 2
-    },
-    {
-        "name": "Ancient Warrior's Weapon",
-        "description": "A perfectly preserved weapon of mysterious origin",
-        "type": "weapon",
-        "damage": random.randint(3, 7),
-        "weapon_type": random.choice(['melee', 'ranged'])
-    }
-]
-
-treasure_types = [
-    {"name": "Golden Idol", "value": 2000},
-    {"name": "Ancient Coins", "value": 1500},
-    {"name": "Jeweled Crown", "value": 3000},
-    {"name": "Sacred Artifact", "value": 2500, "ability": random.choice(sacred_artifact_abilities)},
-    {"name": "Royal Scepter", "value": 1800}
-]
-
-# Add these color constants at the top of the file
-BLUE = '\033[94m'      # Light blue for water
-GREEN = '\033[92m'     # Green for inhabited islands
-YELLOW = '\033[93m'    # Yellow for uninhabited islands
-RED = '\033[91m'       # Red for ships
-WHITE = '\033[97m'     # White for player
-RESET = '\033[0m'      # Reset color
-GRAY = '\033[90m'      # Gray for sea monster
 
 class TradeShip:
     def __init__(self, home_island, world):
@@ -849,12 +810,12 @@ class Map:
             for j in range(self.size):
                 # Check player position first
                 if player_pos and (i, j) == player_pos:
-                    row += f" {WHITE}@{RESET} "
+                    row += " " + COLORS.colorize("@", COLORS.WHITE) + " "
                     continue
                 
-                # Check for sea monster (only show every third day)
+                # Check for sea monster
                 if sea_monster and sea_monster.position == (i, j) and day is not None and day % 3 == 0:
-                    row += f" {GRAY}{sea_monster.symbol}{RESET} "
+                    row += " " + COLORS.colorize("∞", COLORS.GRAY) + " "
                     continue
                 
                 # Check for ships
@@ -863,29 +824,29 @@ class Map:
                     for ship_pos, ship_type, is_player_ship in ships:
                         if ship_pos == (i, j):
                             if is_player_ship:
-                                row += f" {WHITE}@{RESET} "
+                                row += " " + COLORS.colorize("@", COLORS.WHITE) + " "
                             else:
-                                row += f" {RED}{ship_type[0]}{RESET} "
+                                row += " " + COLORS.colorize(ship_type[0], COLORS.RED) + " "
                             ship_here = True
                             break
                 
                 if not ship_here:
                     if self.grid[i][j] is None:
-                        row += f" {BLUE}~{RESET} "  # Water
+                        row += " " + COLORS.colorize("~", COLORS.BLUE) + " "  # Water
                     else:
                         if self.grid[i][j].is_inhabited:
-                            row += f" {GREEN}I{RESET} "  # Inhabited island
+                            row += " " + COLORS.colorize("I", COLORS.GREEN) + " "  # Inhabited island
                         else:
-                            row += f" {YELLOW}o{RESET} "  # Uninhabited island
+                            row += " " + COLORS.colorize("o", COLORS.YELLOW) + " "  # Uninhabited island
             print(row)
         
         print("\nLegend:")
-        print(f"{WHITE}@{RESET} = You")
-        print(f"{GREEN}I{RESET} = Inhabited Island")
-        print(f"{YELLOW}o{RESET} = Uninhabited Island")
-        print(f"{BLUE}~{RESET} = Water")
-        print(f"{RED}S/B/G{RESET} = Sloop/Brigantine/Galleon")
-        print(f"{GRAY}∞{RESET} = Sea Monster")
+        print(COLORS.colorize("@", COLORS.WHITE) + " = You")
+        print(COLORS.colorize("I", COLORS.GREEN) + " = Inhabited Island")
+        print(COLORS.colorize("o", COLORS.YELLOW) + " = Uninhabited Island")
+        print(COLORS.colorize("~", COLORS.BLUE) + " = Water")
+        print(COLORS.colorize("S/B/G", COLORS.RED) + " = Sloop/Brigantine/Galleon")
+        print(COLORS.colorize("∞", COLORS.GRAY) + " = Sea Monster")
 
 class World:
     def __init__(self, num_islands=5):
