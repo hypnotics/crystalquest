@@ -37,3 +37,13 @@ Number of lines of code in game.py ~1250
 - Explore uninhabited islands work
 
 Number of lines of code in game.py ~1350
+
+
+### Day 4 - Refactor & ASCII art
+- Refactor to different files
+- Trading goods
+- Ship upgrades & combat
+- Beautiful ASCII art
+
+Number of files ~5
+

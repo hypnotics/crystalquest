@@ -10,6 +10,7 @@ from crystalquest.items import (
     ship_types
 )
 from crystalquest.colors import COLORS
+from crystalquest.ascii_art import load_ascii_art, display_ascii_art
 
 # Lists for random generation
 climates = ["Tropical", "Temperate", "Mediterranean", "Arctic", "Subtropical"]
@@ -96,19 +97,68 @@ class Ship:
         self.price = price
         self.crew_capacity = crew_capacity
         self.current_crew = 0
-        self.speed = speed  # Squares per day
-        self.position = None  # Will be set when starting travel
-        self.destination = None  # Will be set when starting travel
+        self.speed = speed
+        self.weapons = {}
+        self.position = None
+        self.destination = None
+        # Add hull attributes
+        self.hull_max = ship_types[name]['hull_max']
+        self.hull_current = self.hull_max
+
+    def is_mobile(self):
+        return self.hull_current >= 10
+
+    def repair_at_sea(self, character):
+        """Repair ship using wood from cargo"""
+        if self.hull_current >= self.hull_max:
+            print("Ship is already at full health!")
+            return False
+        
+        if 'Wood' not in character.inventory:
+            print("You need wood to repair the ship!")
+            return False
+
+        character.inventory['Wood'] -= 1
+        if character.inventory['Wood'] == 0:
+            del character.inventory['Wood']
+            
+        self.hull_current = min(self.hull_current + 15, self.hull_max)
+        print(f"Repaired ship hull to {self.hull_current}/{self.hull_max}")
+        return True
 
 class Shipyard:
     def __init__(self):
         self.ships = ship_types
+        self.repair_cost = 200
 
     def visit(self, character):
         print("\n=== Welcome to the Shipyard ===")
-        print("Available ships:")
+        if character.ship:
+            print(f"1. Buy new ship")
+            print(f"2. Repair current ship (Hull: {character.ship.hull_current}/{character.ship.hull_max}, Cost: {self.repair_cost} gold)")
+            print("3. Leave")
+            
+            choice = input("\nWhat would you like to do? ")
+            
+            if choice == "2":
+                if character.ship.hull_current >= character.ship.hull_max:
+                    print("Your ship is already fully repaired!")
+                    return
+                if character.gold >= self.repair_cost:
+                    character.gold -= self.repair_cost
+                    character.ship.hull_current = character.ship.hull_max
+                    print("Ship fully repaired!")
+                else:
+                    print("You can't afford repairs!")
+                return
+            elif choice == "3":
+                return
+
+        print("\nAvailable ships:")
         for ship_name, stats in self.ships.items():
-            print(f"{ship_name}: {stats['price']} gold (Crew: {stats['crew_capacity']}, Speed: {stats['speed']} squares/day)")
+            print(f"{ship_name}: {stats['price']} gold (Crew: {stats['crew_max']}, "
+                  f"Speed: {stats['speed']} squares/day, Hull: {stats['hull_max']}, "
+                  f"Cargo: {stats['cargo']} barrels)")
         
         choice = input("\nWhat would you like to buy? (Enter ship name or 'no'): ").title()
         if choice in self.ships:
@@ -117,7 +167,7 @@ class Shipyard:
                 character.ship = Ship(
                     choice, 
                     self.ships[choice]['price'],
-                    self.ships[choice]['crew_capacity'],
+                    self.ships[choice]['crew_max'],
                     self.ships[choice]['speed']
                 )
                 print(f"You bought a {choice}!")
@@ -159,15 +209,46 @@ class Smithy:
     def visit(self, character):
         print("\n=== Welcome to the Smithy ===")
         print("Available weapons:")
-        for weapon, stats in self.weapons.items():
-            print(f"{weapon}: {stats['price']} gold (Damage: {stats['damage']}, Type: {stats['type']})")
+        
+        # Filter weapons based on whether player has a ship
+        available_weapons = {}
+        for name, stats in self.weapons.items():
+            if stats.get('type') == 'ship':
+                if character.ship:  # Only show ship weapons if player has a ship
+                    available_weapons[name] = stats
+            else:  # Always show personal weapons
+                available_weapons[name] = stats
+
+        # Display available weapons
+        for weapon, stats in available_weapons.items():
+            if stats['type'] == 'ship':
+                print(f"{weapon}: {stats['price']} gold (Damage: {stats['damage']}, "
+                      f"Cargo Space: {stats['cargo_space']}, {stats['description']})")
+            else:
+                print(f"{weapon}: {stats['price']} gold (Damage: {stats['damage']}, "
+                      f"Type: {stats['type']})")
 
         choice = input("\nWhat would you like to buy? (Enter weapon name or 'no'): ").title()
-        if choice in self.weapons:
-            if character.gold >= self.weapons[choice]['price']:
-                character.gold -= self.weapons[choice]['price']
-                character.inventory[choice] = character.inventory.get(choice, 0) + 1
-                print(f"You bought a {choice}!")
+        if choice in available_weapons:
+            weapon_stats = available_weapons[choice]
+            
+            # Check cargo space for ship weapons
+            if weapon_stats['type'] == 'ship':
+                # Calculate current cargo usage
+                current_cargo = sum(item.get('cargo_space', 1) for item in character.inventory.values())
+                if current_cargo + weapon_stats['cargo_space'] > character.ship.cargo_capacity:
+                    print("Not enough cargo space on your ship!")
+                    return
+
+            if character.gold >= weapon_stats['price']:
+                character.gold -= weapon_stats['price']
+                if weapon_stats['type'] == 'ship':
+                    character.ship.weapons = character.ship.weapons if hasattr(character.ship, 'weapons') else {}
+                    character.ship.weapons[choice] = character.ship.weapons.get(choice, 0) + 1
+                    print(f"Added {choice} to your ship!")
+                else:
+                    character.inventory[choice] = character.inventory.get(choice, 0) + 1
+                    print(f"You bought a {choice}!")
             else:
                 print("You can't afford this weapon!")
 
@@ -178,23 +259,36 @@ class Market:
     def visit(self, character):
         print("\n=== Welcome to the Market ===")
         print("Available goods:")
-        for item, price in self.goods.items():
-            print(f"{item}: {price} gold")
+        
+        # Create numbered list of goods
+        goods_list = list(self.goods.items())
+        for i, (item_name, item_data) in enumerate(goods_list, 1):
+            print(f"{i}. {item_data['description']} - {item_data['price']} gold")
 
-        choice = input("\nWhat would you like to buy? (Enter item name or 'no'): ").title()
-        if choice in self.goods:
-            amount = input("How many would you like to buy? ")
-            try:
-                amount = int(amount)
-                total_cost = amount * self.goods[choice]
-                if character.gold >= total_cost:
-                    character.gold -= total_cost
-                    character.inventory[choice] = character.inventory.get(choice, 0) + amount
-                    print(f"You bought {amount} {choice}!")
-                else:
-                    print("You can't afford that many!")
-            except ValueError:
-                print("Please enter a valid number!")
+        choice = input("\nWhat would you like to buy? (number or 'cancel'): ")
+        if choice.lower() == 'cancel':
+            return
+            
+        try:
+            index = int(choice) - 1
+            if 0 <= index < len(goods_list):
+                item_name, item_data = goods_list[index]
+                amount = input("How many would you like to buy? ")
+                try:
+                    amount = int(amount)
+                    total_cost = amount * item_data['price']
+                    if character.gold >= total_cost:
+                        character.gold -= total_cost
+                        character.inventory[item_name] = character.inventory.get(item_name, 0) + amount
+                        print(f"You bought {amount} {item_name}!")
+                    else:
+                        print("You can't afford that many!")
+                except ValueError:
+                    print("Please enter a valid number!")
+            else:
+                print("Invalid choice!")
+        except ValueError:
+            print("Please enter a valid number!")
 
 class Port:
     def __init__(self):
@@ -968,6 +1062,12 @@ class SeaMonster:
         return destroyed
 
 def main():
+    
+    # Load and display title art
+    title_art = load_ascii_art('crystalquest/art/title.jpeg')
+    if title_art:
+        display_ascii_art(title_art)
+    print("\n")
     print("Welcome to Crystal Quest! Adventure awaits!")
     print("1. New Game")
     print("2. Load Game")
@@ -1198,10 +1298,6 @@ def main():
                     current_town = new_town
             elif choice == "6":
                 player.display_info()
-                print(f"\nGold: {player.gold}")
-                print("Inventory:", player.inventory)
-                if player.ship:
-                    print(f"Ship: {player.ship.name} (Crew: {player.ship.current_crew}/{player.ship.crew_capacity})")
             elif choice == "7":
                 current_island.display_info()
             elif choice == "8":

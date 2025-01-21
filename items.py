@@ -53,19 +53,65 @@ weapons = {
         'price': 150,
         'damage': 2,
         'type': 'melee'
+    },
+    'Ship Cannon': {
+        'price': 800,
+        'damage': 8,
+        'type': 'ship',
+        'cargo_space': 2,
+        'description': 'Heavy cannon for ship combat'
+    },
+    'Swivel Gun': {
+        'price': 500,
+        'damage': 6,
+        'type': 'ship',
+        'cargo_space': 1,
+        'description': 'Light, maneuverable ship cannon'
     }
 }
 
 # Trade goods available in the market
 trade_goods = {
-    'Food': 50,
-    'Seeds': 30,
-    'Spices': 100,
-    'Cloth': 80,
-    'Rum': 120,
-    'Wood': 60,
-    'Iron': 90,
-    'Gold': 150
+    'Food': {
+        'price': 50,
+        'barrels': 1,
+        'description': '1 barrel of preserved food'
+    },
+    'Seeds': {
+        'price': 30,
+        'barrels': 1,
+        'description': '1 barrel of planting seeds'
+    },
+    'Spices': {
+        'price': 100,
+        'barrels': 1,
+        'description': '1 barrel of exotic spices'
+    },
+    'Cloth': {
+        'price': 80,
+        'barrels': 1,
+        'description': '1 barrel of fine cloth'
+    },
+    'Rum': {
+        'price': 120,
+        'barrels': 1,
+        'description': '1 barrel of Caribbean rum'
+    },
+    'Wood': {
+        'price': 60,
+        'barrels': 1,
+        'description': '1 barrel of processed wood'
+    },
+    'Iron': {
+        'price': 90,
+        'barrels': 1,
+        'description': '1 barrel of iron ingots'
+    },
+    'Gold': {
+        'price': 150,
+        'barrels': 1,
+        'description': '1 barrel of gold bars'
+    }
 }
 
 # Ship types and their stats
@@ -74,18 +120,21 @@ ship_types = {
         'price': 1000,
         'crew_max': 10,
         'speed': 2,
-        'cargo': 5
+        'cargo': 10,
+        'hull_max': 30
     },
     'Brigantine': {
         'price': 2000,
         'crew_max': 15,
         'speed': 2,
-        'cargo': 8
+        'cargo': 16,
+        'hull_max': 45
     },
     'Galleon': {
         'price': 3000,
         'crew_max': 25,
         'speed': 1,
-        'cargo': 12
+        'cargo': 24,
+        'hull_max': 60
     }
 } 
