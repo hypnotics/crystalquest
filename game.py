@@ -11,6 +11,14 @@ from crystalquest.items import (
 )
 from crystalquest.colors import COLORS
 from crystalquest.ascii_art import load_ascii_art, display_ascii_art
+from crystalquest.ships import Ship, TradeShip
+from crystalquest.locations.shipyard import Shipyard
+from crystalquest.locations.pub import Pub
+from crystalquest.locations.market import Market
+from crystalquest.locations.smithy import Smithy
+from crystalquest.locations.home import Home
+from crystalquest.locations.port import Port
+from crystalquest.locations.ruins import Ruins
 
 # Lists for random generation
 climates = ["Tropical", "Temperate", "Mediterranean", "Arctic", "Subtropical"]
@@ -20,563 +28,8 @@ town_names_suffixes = ["Harbor", "Town", "Village", "Port", "Settlement", "Marke
 animal_species = ["Fox", "Wolf", "Bear", "Raccoon", "Rabbit", "Deer", "Otter", "Badger", "Squirrel", "Owl", "Cat", "Dog"]
 island_prefixes = ["Shadow", "Mystic", "Thunder", "Crystal", "Emerald", "Golden", "Silver"]
 island_suffixes = ["Isle", "Island", "Haven", "Bay", "Cove", "Shores", "Point"]
-ruin_types = ["Temple", "Fortress", "Palace", "Pyramid", "Monastery", "Amphitheater", "Catacombs", "Lighthouse", "Observatory"]
 pirate_name_prefixes = ["Captain", "Black", "Red", "Mad", "Cruel", "Salty", "Iron", "Gold", "Silver", "Bloody"]
 pirate_name_suffixes = ["Cruelbeard", "Meathook", "Lumpeye", "Sabertooth", "Crookclaw", "Doublefang", "Shadowheart", "Dusthand", "Winterbones", "IceStorm"]
-
-class TradeShip:
-    def __init__(self, home_island, world):
-        # Ship type
-        ship_type = random.choice(list(ship_types.keys()))
-        stats = ship_types[ship_type]
-        
-        self.type = ship_type
-        self.crew = random.randint(5, stats['crew_max'])
-        self.speed = stats['speed']
-        self.cargo_capacity = stats['cargo']
-        
-        # Location and movement
-        self.home_island = home_island
-        self.current_position = home_island.coordinates
-        self.destination = None
-        self.days_at_destination = 0
-        self.returning_home = False
-        
-        # Trade goods
-        self.selling = random.choice(list(trade_goods.keys()))
-        self.buying = random.choice([g for g in trade_goods.keys() if g != self.selling])
-        self.sell_price = random.randint(50, 200)
-        self.buy_price = random.randint(50, 200)
-        
-        # Set random destination (not home island)
-        available_islands = [island for island in world.islands.values() 
-                           if island.is_inhabited and island != home_island]
-        if available_islands:
-            self.destination = random.choice(available_islands)
-        
-        self.last_position = self.current_position
-
-    def move(self):
-        if not self.destination:
-            return
-            
-        self.last_position = self.current_position  # Store last position before moving
-        
-        target = (self.home_island.coordinates if self.returning_home 
-                 else self.destination.coordinates)
-        
-        # Calculate direction vector
-        dx = target[0] - self.current_position[0]
-        dy = target[1] - self.current_position[1]
-        distance = (dx**2 + dy**2)**0.5
-        
-        if distance <= self.speed:
-            # Reached destination
-            self.current_position = target
-            if self.returning_home and target == self.home_island.coordinates:
-                # Reset for next journey
-                self.returning_home = False
-                self.days_at_destination = 0
-                self.destination = None
-            elif not self.returning_home:
-                self.days_at_destination += 1
-                if self.days_at_destination >= 3:
-                    self.returning_home = True
-        else:
-            # Move toward destination
-            move_x = int(dx / distance * self.speed)
-            move_y = int(dy / distance * self.speed)
-            self.current_position = (
-                self.current_position[0] + move_x,
-                self.current_position[1] + move_y
-            )
-
-class Ship:
-    def __init__(self, name, price, crew_capacity, speed):
-        self.name = name
-        self.price = price
-        self.crew_capacity = crew_capacity
-        self.current_crew = 0
-        self.speed = speed
-        self.weapons = {}
-        self.position = None
-        self.destination = None
-        # Add hull attributes
-        self.hull_max = ship_types[name]['hull_max']
-        self.hull_current = self.hull_max
-
-    def is_mobile(self):
-        return self.hull_current >= 10
-
-    def repair_at_sea(self, character):
-        """Repair ship using wood from cargo"""
-        if self.hull_current >= self.hull_max:
-            print("Ship is already at full health!")
-            return False
-        
-        if 'Wood' not in character.inventory:
-            print("You need wood to repair the ship!")
-            return False
-
-        character.inventory['Wood'] -= 1
-        if character.inventory['Wood'] == 0:
-            del character.inventory['Wood']
-            
-        self.hull_current = min(self.hull_current + 15, self.hull_max)
-        print(f"Repaired ship hull to {self.hull_current}/{self.hull_max}")
-        return True
-
-class Shipyard:
-    def __init__(self):
-        self.ships = ship_types
-        self.repair_cost = 200
-
-    def visit(self, character):
-        print("\n=== Welcome to the Shipyard ===")
-        if character.ship:
-            print(f"1. Buy new ship")
-            print(f"2. Repair current ship (Hull: {character.ship.hull_current}/{character.ship.hull_max}, Cost: {self.repair_cost} gold)")
-            print("3. Leave")
-            
-            choice = input("\nWhat would you like to do? ")
-            
-            if choice == "2":
-                if character.ship.hull_current >= character.ship.hull_max:
-                    print("Your ship is already fully repaired!")
-                    return
-                if character.gold >= self.repair_cost:
-                    character.gold -= self.repair_cost
-                    character.ship.hull_current = character.ship.hull_max
-                    print("Ship fully repaired!")
-                else:
-                    print("You can't afford repairs!")
-                return
-            elif choice == "3":
-                return
-
-        print("\nAvailable ships:")
-        for ship_name, stats in self.ships.items():
-            print(f"{ship_name}: {stats['price']} gold (Crew: {stats['crew_max']}, "
-                  f"Speed: {stats['speed']} squares/day, Hull: {stats['hull_max']}, "
-                  f"Cargo: {stats['cargo']} barrels)")
-        
-        choice = input("\nWhat would you like to buy? (Enter ship name or 'no'): ").title()
-        if choice in self.ships:
-            if character.gold >= self.ships[choice]['price']:
-                character.gold -= self.ships[choice]['price']
-                character.ship = Ship(
-                    choice, 
-                    self.ships[choice]['price'],
-                    self.ships[choice]['crew_max'],
-                    self.ships[choice]['speed']
-                )
-                print(f"You bought a {choice}!")
-            else:
-                print("You can't afford this ship!")
-
-class Pub:
-    def __init__(self):
-        self.crew_cost = 100
-
-    def visit(self, character):
-        print("\n=== Welcome to the Pub ===")
-        if character.ship is None:
-            print("You need a ship before you can recruit crew!")
-            return
-
-        print(f"Crew members available for {self.crew_cost} gold each")
-        print(f"Your ship can hold {character.ship.crew_capacity} crew members")
-        print(f"Current crew: {character.ship.current_crew}")
-
-        amount = input("How many crew members would you like to recruit? ")
-        try:
-            amount = int(amount)
-            total_cost = amount * self.crew_cost
-            if (amount + character.ship.current_crew <= character.ship.crew_capacity and 
-                character.gold >= total_cost):
-                character.gold -= total_cost
-                character.ship.current_crew += amount
-                print(f"You hired {amount} new crew members!")
-            else:
-                print("You either can't afford this many crew members or your ship is too small!")
-        except ValueError:
-            print("Please enter a valid number!")
-
-class Smithy:
-    def __init__(self):
-        self.weapons = weapons
-
-    def visit(self, character):
-        print("\n=== Welcome to the Smithy ===")
-        print("Available weapons:")
-        
-        # Filter weapons based on whether player has a ship
-        available_weapons = {}
-        for name, stats in self.weapons.items():
-            if stats.get('type') == 'ship':
-                if character.ship:  # Only show ship weapons if player has a ship
-                    available_weapons[name] = stats
-            else:  # Always show personal weapons
-                available_weapons[name] = stats
-
-        # Display available weapons
-        for weapon, stats in available_weapons.items():
-            if stats['type'] == 'ship':
-                print(f"{weapon}: {stats['price']} gold (Damage: {stats['damage']}, "
-                      f"Cargo Space: {stats['cargo_space']}, {stats['description']})")
-            else:
-                print(f"{weapon}: {stats['price']} gold (Damage: {stats['damage']}, "
-                      f"Type: {stats['type']})")
-
-        choice = input("\nWhat would you like to buy? (Enter weapon name or 'no'): ").title()
-        if choice in available_weapons:
-            weapon_stats = available_weapons[choice]
-            
-            # Check cargo space for ship weapons
-            if weapon_stats['type'] == 'ship':
-                # Calculate current cargo usage
-                current_cargo = sum(item.get('cargo_space', 1) for item in character.inventory.values())
-                if current_cargo + weapon_stats['cargo_space'] > character.ship.cargo_capacity:
-                    print("Not enough cargo space on your ship!")
-                    return
-
-            if character.gold >= weapon_stats['price']:
-                character.gold -= weapon_stats['price']
-                if weapon_stats['type'] == 'ship':
-                    character.ship.weapons = character.ship.weapons if hasattr(character.ship, 'weapons') else {}
-                    character.ship.weapons[choice] = character.ship.weapons.get(choice, 0) + 1
-                    print(f"Added {choice} to your ship!")
-                else:
-                    character.inventory[choice] = character.inventory.get(choice, 0) + 1
-                    print(f"You bought a {choice}!")
-            else:
-                print("You can't afford this weapon!")
-
-class Market:
-    def __init__(self):
-        self.goods = trade_goods
-
-    def visit(self, character):
-        print("\n=== Welcome to the Market ===")
-        print("Available goods:")
-        
-        # Create numbered list of goods
-        goods_list = list(self.goods.items())
-        for i, (item_name, item_data) in enumerate(goods_list, 1):
-            print(f"{i}. {item_data['description']} - {item_data['price']} gold")
-
-        choice = input("\nWhat would you like to buy? (number or 'cancel'): ")
-        if choice.lower() == 'cancel':
-            return
-            
-        try:
-            index = int(choice) - 1
-            if 0 <= index < len(goods_list):
-                item_name, item_data = goods_list[index]
-                amount = input("How many would you like to buy? ")
-                try:
-                    amount = int(amount)
-                    total_cost = amount * item_data['price']
-                    if character.gold >= total_cost:
-                        character.gold -= total_cost
-                        character.inventory[item_name] = character.inventory.get(item_name, 0) + amount
-                        print(f"You bought {amount} {item_name}!")
-                    else:
-                        print("You can't afford that many!")
-                except ValueError:
-                    print("Please enter a valid number!")
-            else:
-                print("Invalid choice!")
-        except ValueError:
-            print("Please enter a valid number!")
-
-class Port:
-    def __init__(self):
-        self.travel_cost = 200
-        self.trade_ships = []  # List of trade ships currently in port
-        self.last_spawn = 0  # Days since last trade ship spawn
-
-    def spawn_trade_ship(self, current_day, home_island, world):
-        # Count total trade ships in the world
-        total_trade_ships = sum(len(port.trade_ships) 
-                              for island in world.islands.values() 
-                              if island.is_inhabited 
-                              for port in [town.locations.get('port') for town in island.towns.values()])
-        
-        # Only spawn if below max limit and enough time has passed
-        if (total_trade_ships < world.max_trade_ships and 
-            current_day - self.last_spawn >= random.randint(3, 7)):
-            self.trade_ships.append(TradeShip(home_island, world))
-            self.last_spawn = current_day
-
-    def handle_trade(self, character, day):
-        if not self.trade_ships:
-            print("No trade ships currently in port!")
-            return None, None, None, day
-        # ... rest of handle_trade method ...
-        return None, None, None, day
-
-    def handle_deckhand_travel(self, day):
-        # Filter out ships with no destination
-        available_ships = [ship for ship in self.trade_ships if ship.destination is not None]
-        
-        if not available_ships:
-            print("No ships currently available for travel!")
-            return None, None, None, day
-
-        print("\nAvailable ships:")
-        for i, ship in enumerate(available_ships, 1):
-            dest = "returning home" if ship.returning_home else f"headed to {ship.destination.name}"
-            print(f"{i}. {ship.type} ({dest})")
-        
-        choice = input("\nWhich ship would you like to join? (number or 'cancel'): ")
-        if choice.lower() == 'cancel':
-            return None, None, None, day
-            
-        try:
-            chosen_ship = available_ships[int(choice) - 1]
-            print(f"\nYou've joined the crew of the {chosen_ship.type}!")
-            return ((chosen_ship.destination if not chosen_ship.returning_home 
-                    else chosen_ship.home_island), None, chosen_ship, day)
-        except (ValueError, IndexError):
-            print("Invalid choice!")
-            return None, None, None, day
-
-    def handle_sailing(self, character, world, current_island, day):
-        print("\nUse numpad to navigate:")
-        print("7 8 9")
-        print("4 5 6")
-        print("1 2 3")
-        print("(5 to wait, 0 to quit sailing)")
-        
-        ship_pos = list(current_island.coordinates)
-        moves_remaining = character.ship.speed
-        
-        while True:
-            # Display map with current ship position
-            world.map.display(tuple(ship_pos))
-            
-            print(f"\nMoves remaining this day: {moves_remaining}")
-            move = input("Enter direction (0-9): ")
-            
-            # Movement mapping
-            moves = {
-                '8': (-1, 0),   # North
-                '2': (1, 0),    # South
-                '6': (0, 1),    # East
-                '4': (0, -1),   # West
-                '7': (-1, -1),  # Northwest
-                '9': (-1, 1),   # Northeast
-                '1': (1, -1),   # Southwest
-                '3': (1, 1),    # Southeast
-                '5': (0, 0),    # Wait
-                '0': None       # Quit
-            }
-            
-            if move not in moves:
-                print("Invalid direction!")
-                continue
-                
-            if move == '0':
-                return current_island, None, None, day
-                
-            if move == '5':
-                print("Waiting...")
-                day += 1
-                moves_remaining = character.ship.speed
-                continue
-                
-            if moves_remaining <= 0:
-                print("No more moves today! Use 5 to wait for next day.")
-                continue
-                
-            dx, dy = moves[move]
-            new_x = ship_pos[0] + dx
-            new_y = ship_pos[1] + dy
-            
-            # Check if new position is within bounds
-            if 0 <= new_x < world.map.size and 0 <= new_y < world.map.size:
-                ship_pos = [new_x, new_y]
-                moves_remaining -= 1
-                
-                # Check if we're on an island
-                island_here = world.map.grid[new_x][new_y]
-                if island_here:
-                    print(f"\nYou've reached {island_here.name}!")
-                    disembark = input("Would you like to disembark? (yes/no): ").lower()
-                    if disembark == 'yes':
-                        return island_here, None, None, day
-            else:
-                print("You can't sail off the edge of the map!")
-
-        return current_island, None, None, day
-
-    def calculate_distance(self, start, end):
-        """Calculate distance between two points using Pythagorean theorem"""
-        dx = end[0] - start[0]
-        dy = end[1] - start[1]
-        return (dx**2 + dy**2)**0.5
-
-    def calculate_travel_time(self, distance, speed):
-        """Calculate travel time based on distance and ship speed"""
-        return max(1, int(distance / speed))
-
-    def visit(self, character, world, current_island, day):
-        print("\n=== Welcome to the Port ===")
-        if character.ship:
-            print("1. Set Sail")
-            print("2. Trade with Ships")
-            print("3. Back")
-        else:
-            print("1. Travel as Deckhand")
-            print("2. Trade with Ships")
-            print("3. Back")
-        
-        choice = input("What would you like to do? ")
-        
-        if character.ship and choice == "1":
-            return self.handle_sailing(character, world, current_island, day)
-        elif not character.ship and choice == "1":
-            return self.handle_deckhand_travel(day)
-        elif choice == "2":
-            return self.handle_trade(character, day)
-        
-        return current_island, None, None, day
-
-class Home:
-    def __init__(self):
-        self.storage = {}  # For storing items
-        self.storage_limit = 10
-        self.field = None  # For growing crops
-        self.planting_day = None  # To track when something was planted
-        
-    def visit(self, character, current_day):
-        while True:
-            print("\n=== Welcome Home ===")
-            print("\nStorage:", self.storage)
-            print(f"Storage space used: {sum(self.storage.values())}/{self.storage_limit}")
-            
-            if self.field:
-                days_growing = current_day - self.planting_day
-                print(f"\nField: {self.field} (Growing for {days_growing} days)")
-                if days_growing >= 5:  # Crops take 5 days to grow
-                    print("Your crop is ready to harvest!")
-            else:
-                print("\nField: Empty")
-            
-            print("\nWhat would you like to do?")
-            print("1. Store items")
-            print("2. Retrieve items")
-            print("3. Plant seeds")
-            print("4. Harvest crop")
-            print("5. Leave")
-            
-            choice = input("\nChoice: ")
-            
-            if choice == "1":
-                self._store_items(character)
-            elif choice == "2":
-                self._retrieve_items(character)
-            elif choice == "3":
-                self._plant_seeds(character, current_day)
-            elif choice == "4":
-                self._harvest_crop(character, current_day)
-            elif choice == "5":
-                break
-            else:
-                print("Invalid choice!")
-    
-    def _store_items(self, character):
-        print("\nYour inventory:", character.inventory)
-        item = input("What would you like to store? (or 'cancel'): ").title()
-        
-        if item == 'Cancel':
-            return
-            
-        if item in character.inventory:
-            amount = int(input(f"How many {item}s would you like to store? "))
-            if amount <= 0:
-                print("Please enter a positive number!")
-                return
-                
-            if amount > character.inventory[item]:
-                print("You don't have that many!")
-                return
-                
-            current_storage = sum(self.storage.values())
-            if current_storage + amount > self.storage_limit:
-                print("Not enough storage space!")
-                return
-                
-            character.inventory[item] -= amount
-            if character.inventory[item] == 0:
-                del character.inventory[item]
-                
-            self.storage[item] = self.storage.get(item, 0) + amount
-            print(f"Stored {amount} {item}(s)")
-        else:
-            print("You don't have that item!")
-    
-    def _retrieve_items(self, character):
-        if not self.storage:
-            print("Storage is empty!")
-            return
-            
-        print("\nStored items:", self.storage)
-        item = input("What would you like to retrieve? (or 'cancel'): ").title()
-        
-        if item == 'Cancel':
-            return
-            
-        if item in self.storage:
-            amount = int(input(f"How many {item}s would you like to retrieve? "))
-            if amount <= 0:
-                print("Please enter a positive number!")
-                return
-                
-            if amount > self.storage[item]:
-                print("You don't have that many stored!")
-                return
-                
-            character.inventory[item] = character.inventory.get(item, 0) + amount
-            self.storage[item] -= amount
-            if self.storage[item] == 0:
-                del self.storage[item]
-            print(f"Retrieved {amount} {item}(s)")
-        else:
-            print("That item isn't in storage!")
-    
-    def _plant_seeds(self, character, current_day):
-        if self.field:
-            print("There's already something growing in your field!")
-            return
-            
-        if "Seeds" not in character.inventory:
-            print("You don't have any seeds to plant!")
-            return
-            
-        character.inventory["Seeds"] -= 1
-        if character.inventory["Seeds"] == 0:
-            del character.inventory["Seeds"]
-            
-        self.field = "Crops"
-        self.planting_day = current_day
-        print("You planted some seeds!")
-    
-    def _harvest_crop(self, character, current_day):
-        if not self.field:
-            print("There's nothing growing in your field!")
-            return
-            
-        days_growing = current_day - self.planting_day
-        if days_growing < 5:
-            print(f"The crops aren't ready yet! ({days_growing}/5 days)")
-            return
-            
-        character.inventory["Food"] = character.inventory.get("Food", 0) + 3
-        print("You harvested 3 Food from your crops!")
-        self.field = None
-        self.planting_day = None
 
 class Town:
     def __init__(self, name, is_home_town=False):
@@ -591,78 +44,6 @@ class Town:
         }
         if is_home_town:
             self.locations['home'] = Home()
-
-class Ruins:
-    def __init__(self):
-        self.type = random.choice(ruin_types)
-        self.explored = False
-        
-    def explore(self, character):
-        if self.explored:
-            print("You've already explored these ruins.")
-            return
-            
-        print(f"\nExploring the ancient {self.type}...")
-        print("The air is thick with mystery as you venture deeper...")
-        
-        if random.random() < 0.6:
-            self._find_treasure(character)
-        else:
-            self._encounter_robbers(character)
-            
-        self.explored = True
-    
-    def _find_treasure(self, character):
-        treasure = random.choice(treasure_types)
-        
-        # Handle special abilities for Sacred Artifacts
-        if treasure['name'] == "Sacred Artifact":
-            ability = treasure['ability']
-            print(f"\nYou've discovered a {ability['name']}!")
-            print(ability['description'])
-            print(f"It's worth {treasure['value']} gold!")
-            
-            if ability['type'] == 'stat_boost':
-                character.stats[ability['stat']] += ability['boost']
-                print(f"The {ability['name']} increases your {ability['stat']} by {ability['boost']}!")
-                
-            elif ability['type'] == 'farming':
-                character.growth_reduction = ability['growth_reduction']
-                print(f"The {ability['name']} will make your crops grow {ability['growth_reduction']} days faster!")
-                
-            elif ability['type'] == 'weapon':
-                weapon_name = f"{ability['name']}"
-                character.inventory[weapon_name] = character.inventory.get(weapon_name, 0) + 1
-                print(f"The {ability['name']} has {ability['damage']} damage as a {ability['weapon_type']} weapon!")
-                if not hasattr(character, 'weapon_stats'):
-                    character.weapon_stats = {}
-                character.weapon_stats[weapon_name] = {
-                    'damage': ability['damage'],
-                    'type': ability['weapon_type']
-                }
-        else:
-            print(f"\nYou've discovered a {treasure['name']}!")
-            print(f"It's worth {treasure['value']} gold!")
-        
-        character.gold += treasure['value']
-        
-    def _encounter_robbers(self, character):
-        print("\nYou've encountered a group of robbers!")
-        robbers_strength = random.randint(5, 15)
-        
-        combat_score = (character.stats["Strength"] + 
-                       character.stats["Dexterity"] + 
-                       character.inventory.get("Cutlass", 0) * 2 +
-                       character.inventory.get("Pistol", 0) * 3)
-        
-        if combat_score > robbers_strength:
-            loot = random.randint(100, 500)
-            print(f"You've defeated the robbers and found {loot} gold!")
-            character.gold += loot
-        else:
-            loss = min(character.gold, random.randint(50, 200))
-            print(f"The robbers overwhelmed you! You lost {loss} gold.")
-            character.gold -= loss
 
 class Nemesis:
     def __init__(self):
@@ -748,6 +129,21 @@ class Character:
         print("\n=== Nemesis Information ===")
         print(f"Name: {self.nemesis.name} the {self.nemesis.species}")
         print(f"Ship: {self.nemesis.ship_type}")
+        print("\nInventory:")
+        if self.inventory:
+            for item, amount in self.inventory.items():
+                print(f"  {item}: {amount}")
+        else:
+            print("  Empty")
+            
+        if self.ship:
+            print(f"\nShip: {self.ship.name}")
+            print(f"  Crew: {self.ship.current_crew}/{self.ship.crew_capacity}")
+            print(f"  Hull: {self.ship.hull_current}/{self.ship.hull_max}")
+            if self.ship.weapons:
+                print("  Weapons:")
+                for weapon, count in self.ship.weapons.items():
+                    print(f"    {weapon}: {count}")
 
 class Island:
     def __init__(self, name=None):
@@ -769,14 +165,16 @@ class Island:
         
         self.is_inhabited = random.random() > 0.3
         
+        # Update ruins initialization
+        self.has_ruins = random.random() < 0.4  # 40% chance of ruins
+        if self.has_ruins:
+            self.ruins = Ruins()  # No longer needs type parameter
+        
         if not self.is_inhabited:
-            self.has_ruins = True # random.random() < 0.4
-            self.ruins = Ruins() if self.has_ruins else None
             self.towns = {}
             self.population = 0
         else:
-            self.has_ruins = False
-            self.ruins = None
+            self.towns = {}
             num_towns = {
                 "Small": 1,
                 "Medium": 2,
@@ -793,24 +191,17 @@ class Island:
     def display_info(self):
         print(f"\n=== {self.name} ===")
         print(f"Size: {self.size}")
-        print(f"Climate: {self.climate}")
-        if self.coordinates:
-            # Convert grid coordinates to lat/long format
-            lat = f"{'N' if self.coordinates[0] < 10 else 'S'} {abs(self.coordinates[0] - 10):02.1f}°"
-            long = f"{'W' if self.coordinates[1] < 10 else 'E'} {abs(self.coordinates[1] - 10):02.1f}°"
-            print(f"Location: {lat}, {long}")
-            print(f"Grid Position: ({self.coordinates[0]}, {self.coordinates[1]})")
-        print(f"Biotopes: {', '.join(self.biotopes)}")
         if self.is_inhabited:
-            print(f"Total Population: {self.population}")
+            print("Status: Inhabited")
+            print(f"Population: {self.population}")
             print("\nTowns:")
-            for town_name, town in self.towns.items():
-                print(f"- {town_name} (Population: {town.population})")
+            for town_name in self.towns:
+                print(f"- {town_name}")
         else:
             print("Status: Uninhabited")
             if self.has_ruins:
-                status = "Unexplored" if not self.ruins.explored else "Explored"
-                print(f"Ancient {self.ruins.type} discovered! ({status})")
+                status = "Unexplored" if not self.ruins.treasure_found else "Explored"
+                print(f"Ancient Ruins discovered! ({status})")
 
 class Map:
     def __init__(self, size=20):
@@ -904,12 +295,12 @@ class World:
     def __init__(self, num_islands=5):
         self.map = Map(20)
         self.islands = {}
-        self.max_trade_ships = len([i for i in self.islands.values() if i.is_inhabited]) * 4
         
         # Create islands
         for _ in range(num_islands):
             island = Island()
             self.islands[island.name] = island
+            island.world = self  # Add reference to world
             
             # Try to place the island on the map
             placed = False
@@ -953,6 +344,9 @@ class World:
                 self.islands[island_name].population = sum(
                     town.population for town in self.islands[island_name].towns.values()
                 )
+
+        # Calculate max_trade_ships after islands are created
+        self.max_trade_ships = len([i for i in self.islands.values() if i.is_inhabited]) * 2  # 2 ships per inhabited island
 
     def get_inhabited_islands(self):
         return {name: island for name, island in self.islands.items() if island.is_inhabited}
@@ -1058,6 +452,10 @@ class SeaMonster:
         destroyed = []
         for ship in trade_ships:
             if ship.current_position == self.position:
+                # Load and display monster art when destroying a ship
+                monster_art = load_ascii_art('crystalquest/art/monster.jpeg')
+                if monster_art:
+                    display_ascii_art(monster_art)
                 destroyed.append(ship)
         return destroyed
 
@@ -1115,10 +513,10 @@ def main():
         # Move sea monster
         sea_monster.move(world)
         
-        # Check if sea monster caught the player
-        if ((not current_ship and sea_monster.position == current_island.coordinates) or
-            (current_ship and sea_monster.position == tuple(ship_pos))):
-            print(f"\n{GRAY}The sea monster has found you!{RESET}")
+        # Check for sea monster collision with current ship
+        if ((player.ship and sea_monster.position == player.ship.position) or
+            (current_ship and sea_monster.position == current_ship.get_position())):
+            print("\nThe sea monster attacks your ship!")
             print(f"{RED}=== GAME OVER ==={RESET}")
             print(f"You survived for {day} days.")
             break
@@ -1128,7 +526,7 @@ def main():
         for ship in destroyed_ships:
             trade_ships.remove(ship)
             if day % 3 == 0:  # Only show message when monster is visible
-                print(f"\n{GRAY}The sea monster has destroyed a {ship.type}!{RESET}")
+                print(f"\n{COLORS.colorize('The sea monster has destroyed a ' + ship.type + '!', COLORS.GRAY)}")
         
         # Update trade ships
         for island in world.islands.values():
@@ -1136,12 +534,18 @@ def main():
                 for town_name, town in island.towns.items():
                     if 'port' in town.locations:
                         port = town.locations['port']
-                        port.spawn_trade_ship(day, island, world)
-                        trade_ships.extend([ship for ship in port.trade_ships if ship not in trade_ships])
+                        new_ship = port.spawn_trade_ship(day, island, town_name, world)
+                        if new_ship:
+                            trade_ships.append(new_ship)
+                        port.update_trade_ships(trade_ships)
         
-        # Move existing trade ships
+        # Move existing trade ships and remove any that are stuck
+        active_trade_ships = []
         for ship in trade_ships:
             ship.move()
+            if ship.destination or ship.returning_home:
+                active_trade_ships.append(ship)
+        trade_ships = active_trade_ships
         
         # Create ship display info list with player ship information
         ship_display_info = [(ship.current_position, ship.type, ship == current_ship) 
@@ -1317,8 +721,7 @@ def main():
             if choice == "1":
                 current_island.display_info()
             elif choice == "2" and current_island.has_ruins:
-                current_island.ruins.explore(player)
-                day += 1  # Exploring ruins takes a day
+                day = current_island.ruins.visit(player, day)  # Use return value from visit
             elif choice == "3":
                 # Return to nearest inhabited island
                 inhabited_islands = world.get_inhabited_islands()
