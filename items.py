@@ -1,6 +1,7 @@
 import random
 
-# Update sacred artifact abilities with specific names
+# Sacred artifact templates. Rolled values are filled in by make_artifact()
+# so each find is its own item, not one shared roll from import time.
 sacred_artifact_abilities = [
     {
         "name": "Warrior's Medallion",
@@ -19,8 +20,6 @@ sacred_artifact_abilities = [
         "name": "Ancient Warrior's Weapon",
         "description": "A perfectly preserved weapon of mysterious origin",
         "type": "weapon",
-        "damage": random.randint(3, 7),
-        "weapon_type": random.choice(['melee', 'ranged'])
     }
 ]
 
@@ -28,9 +27,26 @@ treasure_types = [
     {"name": "Golden Idol", "value": 2000},
     {"name": "Ancient Coins", "value": 1500},
     {"name": "Jeweled Crown", "value": 3000},
-    {"name": "Sacred Artifact", "value": 2500, "ability": random.choice(sacred_artifact_abilities)},
+    {"name": "Sacred Artifact", "value": 2500, "sacred": True},
     {"name": "Royal Scepter", "value": 1800}
 ]
+
+
+def make_artifact():
+    """Return a fresh artifact. Weapon damage and type are rolled per item."""
+    artifact = dict(random.choice(sacred_artifact_abilities))
+    if artifact.get("type") == "weapon":
+        artifact["damage"] = random.randint(3, 7)
+        artifact["weapon_type"] = random.choice(["melee", "ranged"])
+    return artifact
+
+
+def make_treasure():
+    """Return a fresh ruins treasure. Sacred finds carry their own artifact."""
+    treasure = dict(random.choice(treasure_types))
+    if treasure.pop("sacred", False):
+        treasure["ability"] = make_artifact()
+    return treasure
 
 # Weapons available in the smithy
 weapons = {

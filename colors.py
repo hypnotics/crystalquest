@@ -18,44 +18,48 @@ def supports_color():
         
     return True
 
-# Define color class with fallback symbols
-class Colors:
+class COLORS:
     def __init__(self):
         self.use_colors = supports_color()
         
-        if self.use_colors:
-            self.BLUE = '\033[94m'      # Light blue for water
-            self.GREEN = '\033[92m'     # Green for inhabited islands
-            self.YELLOW = '\033[93m'    # Yellow for uninhabited islands
-            self.RED = '\033[91m'       # Red for ships
-            self.WHITE = '\033[97m'     # White for player
-            self.GRAY = '\033[90m'      # Gray for sea monster
-            self.RESET = '\033[0m'      # Reset color
-        else:
-            # Fallback ASCII symbols
-            self.BLUE = ''
-            self.GREEN = ''
-            self.YELLOW = ''
-            self.RED = ''
-            self.WHITE = ''
-            self.GRAY = ''
-            self.RESET = ''
+        # ANSI color codes
+        self.BLACK = '\033[30m'
+        self.RED = '\033[31m'
+        self.GREEN = '\033[32m'
+        self.YELLOW = '\033[33m'
+        self.BLUE = '\033[34m'
+        self.MAGENTA = '\033[35m'
+        self.CYAN = '\033[36m'
+        self.WHITE = '\033[37m'
+        self.GRAY = '\033[90m'
+        self.RESET = '\033[0m'
+        
+        # Game-specific colors
+        self.WATER = '\033[94m'      # Light blue for water
+        self.ISLAND_INHABITED = '\033[92m'     # Green for inhabited islands
+        self.ISLAND_UNINHABITED = '\033[93m'    # Yellow for uninhabited islands
+        self.SHIP = '\033[91m'       # Red for ships
+        self.PLAYER = '\033[97m'     # White for player
+        self.MONSTER = '\033[90m'      # Gray for sea monster
+        
+        if not self.use_colors:
+            # Clear color codes only. dir() also lists methods, and wiping those
+            # makes colorize unusable in a non-color terminal.
+            for attr in list(vars(self)):
+                if attr.startswith('_') or attr == 'use_colors':
+                    continue
+                setattr(self, attr, '')
     
     def colorize(self, text, color):
-        """Apply color to text with fallback symbols"""
-        if self.use_colors:
+        """Apply color to text, or return the text unchanged."""
+        if self.use_colors and color:
             return f"{color}{text}{self.RESET}"
-        else:
-            # Fallback symbols when colors aren't supported
-            symbols = {
-                self.BLUE: '~',    # water
-                self.GREEN: '#',   # inhabited islands
-                self.YELLOW: 'o',  # uninhabited islands
-                self.RED: 'S',     # ships
-                self.WHITE: '@',   # player
-                self.GRAY: '8',    # sea monster
-            }
-            return symbols.get(color, text)
+        return text
 
 # Create a global instance
-COLORS = Colors() 
+COLORS = COLORS()
+
+# Export individual colors for convenience
+RED = COLORS.RED
+RESET = COLORS.RESET
+GRAY = COLORS.GRAY 

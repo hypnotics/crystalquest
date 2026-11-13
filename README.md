@@ -47,3 +47,7 @@ Number of lines of code in game.py ~1350
 
 Number of files ~5
 
+### Day 4 - Refactor & bug fixes
+- Cursor starts to remove code causing regressions. Trying to refactor to fix the issues.
+
+Number of files ~10
